@@ -3,17 +3,11 @@ from __future__ import annotations
 
 import json
 import os
-import ssl
 import time
 from typing import Dict, Iterable, List, Mapping, MutableMapping, Optional
 from urllib import error as urllib_error
 from urllib import parse as urllib_parse
 from urllib import request as urllib_request
-
-try:
-    import certifi
-except ImportError:  # pragma: no cover - certifi is optional
-    certifi = None
 
 __all__ = [
     "Judge0Error",
@@ -43,27 +37,6 @@ MAX_WAIT_SECONDS = _env_float("JUDGE0_MAX_WAIT_SECONDS", 20.0)
 RAPIDAPI_HOST = os.getenv("JUDGE0_RAPIDAPI_HOST") or urllib_parse.urlparse(BASE_URL).netloc
 RAPIDAPI_KEY = os.getenv("JUDGE0_RAPIDAPI_KEY")
 DIRECT_API_KEY = os.getenv("JUDGE0_API_KEY")
-
-
-def _build_ssl_context() -> ssl.SSLContext:
-    disable_verify = os.getenv("JUDGE0_DISABLE_SSL_VERIFY", "").strip().lower()
-    if disable_verify in {"1", "true", "yes"}:
-        context = ssl.create_default_context()
-        context.check_hostname = False
-        context.verify_mode = ssl.CERT_NONE
-        return context
-
-    if certifi is not None:
-        try:
-            return ssl.create_default_context(cafile=certifi.where())
-        except Exception:
-            # Fall back to the default context if certifi fails for any reason.
-            pass
-
-    return ssl.create_default_context()
-
-
-_SSL_CONTEXT = _build_ssl_context()
 
 
 def _default_headers() -> Dict[str, str]:
@@ -235,9 +208,7 @@ def _perform_request(
     req = urllib_request.Request(url, data=payload, method=method.upper(), headers=headers)
 
     try:
-        with urllib_request.urlopen(
-            req, timeout=REQUEST_TIMEOUT, context=_SSL_CONTEXT
-        ) as response:
+        with urllib_request.urlopen(req, timeout=REQUEST_TIMEOUT) as response:
             content = response.read().decode("utf-8")
             return json.loads(content) if content else {}
     except urllib_error.HTTPError as exc:
