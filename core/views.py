@@ -1,9 +1,12 @@
 from django.shortcuts import render
 
 # Create your views here.
-from rest_framework.views import APIView
+from rest_framework import status
 from rest_framework.response import Response
+from rest_framework.views import APIView
+
 from .ai import ask_codex
+from .judge0 import Judge0Error, execute_code, get_supported_languages
 
 class CurriculumView(APIView):
     def post(self, request):
@@ -26,3 +29,40 @@ class FeedbackView(APIView):
         prompt = f"Review this {topic} code:\n{code}\nCheck correctness, give feedback, and suggest improvements."
         feedback = ask_codex(prompt)
         return Response({"feedback": feedback})
+
+
+class CodeExecutionView(APIView):
+    """Proxy code execution requests to Judge0."""
+
+    def get(self, request):
+        return Response({"languages": get_supported_languages()})
+
+    def post(self, request):
+        language = request.data.get("language")
+        source_code = request.data.get("source_code", "")
+        stdin = request.data.get("stdin", "")
+        cli_args = request.data.get("command_line_arguments")
+        expected_output = request.data.get("expected_output")
+
+        if not language:
+            return Response(
+                {"error": "language is required."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
+            result = execute_code(
+                language,
+                source_code,
+                stdin=stdin,
+                command_line_arguments=cli_args,
+                expected_output=expected_output,
+            )
+            return Response(result)
+        except ValueError as exc:  # missing or unsupported parameters
+            return Response({"error": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+        except Judge0Error as exc:
+            return Response(
+                {"error": str(exc)},
+                status=status.HTTP_502_BAD_GATEWAY,
+            )
