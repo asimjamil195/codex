@@ -12,3 +12,7 @@ export const generateLesson = (concept) =>
 
 export const getFeedback = (code) =>
   API.post("feedback/", { code });
+
+export const listLanguages = () => API.get("execute/");
+
+export const runCode = (payload) => API.post("execute/", payload);
